@@ -1,2 +1,1 @@
-# inhibition_prediction_optimization
-Predicting when an information cascade would face final saturation leading to complete stop - using optimization 
+Studying the latent influence of network motifs on information diffusion based on survival analysis
