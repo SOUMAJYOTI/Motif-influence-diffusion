@@ -25,6 +25,7 @@ import multiprocessing
 import threading
 import random
 
+# form the motifs from the first k nodes where $k$ is the parameter
 diff_dict = pickle.load(open('../../data/diffusion_dict_v1_t07.pickle', 'rb'))
 
 print('Loading diffusion file...')
@@ -71,7 +72,7 @@ def motif_operation(mid):
         src = r['source']
         tgt = r['target']
 
-        # Set the temporal informatio of the nodes
+        # Set the temporal information of the nodes
         rt_time = str(r['rt_time'])
         rt_date = rt_time[:10]
         rt_t = rt_time[11:19]
@@ -108,7 +109,7 @@ def motif_operation(mid):
         # If the number of observed nodes (used for the learning algorithm) crosses a threshold = 50
         if new_nodes_count > 50:
             # these are the historical edges
-            diff_edges= []
+            diff_edges = []
             for v in new_nodes:
                 try:
                     for uid, tid in diff_dict[v]:
@@ -168,25 +169,11 @@ def motif_operation(mid):
             motifs_graph_filtered, motifs_count_filtered, vertex_maps_filtered = \
                 gt.clustering.motifs(cascade_graph, 3, return_maps=True)
 
-            print(motifs_count_filtered)
-            return
+            # for g in motifs_graph_filtered:
+            #     for e in g.edges():
+            #         print(cascade_edge_prop[e])
 
-            # print(motif_patterns_cascade_list)
-
-            # print("Number of motifs: ", sorted(motifs_count_filtered, reverse=True))
-            # At this point, the computation stops for the cascade for steep operation.
-            # the values are stored in the reverse order for the plots.
-            # if stop_steep_flag == 1:
-            #     # print("Inside steep: ", len(motif_patterns_cascade_list))
-            #     motif_patterns_steep = motif_patterns_cascade_list[:cnt_intervals+1], mid # Add the cascade mid for indexing
-            #
-            #     stop_steep_flag = 2
-            #     cnt_intervals = 0
-            #     motif_patterns_cascade_list = [{} for i in range(500)]
-            #     nodes_interval = [[] for i in range(500)]
-            #     weighted_edges = [[] for i in range(500)]
-
-            # return motifs_count_filtered
+            return motifs_graph_filtered, motifs_count_filtered
 
 
 if __name__ == '__main__':
@@ -202,8 +189,9 @@ if __name__ == '__main__':
 
     motif_patterns_list = []
     dict_patterns = {}
+    patterns_count = 1
 
-    numProcessors = 6
+    numProcessors = 2
     pool = multiprocessing.Pool(numProcessors, initializer=init, initargs=(count_motifs,))
 
     num_cascades = len(steep_inhib_times.keys())
@@ -217,21 +205,38 @@ if __name__ == '__main__':
     for mid in steep_inhib_times:
         tasks.append( (mid) )
         cnt_mids += 1
-        if cnt_mids > 1:
+        if cnt_mids > 500:
             break
 
     results = pool.map_async(motif_operation, tasks)
     pool.close()
     pool.join()
 
-    # motif_data = results.get()
-    #
-    # count_invalid = 0
-    # for idx in range(len(motif_data)):
-    #     try:
-    #         (motifs_count) = motif_data[idx]
-    #     except:
-    #         count_invalid += 1
-    #
-    # print('Invalid: ', count_invalid)
+    motif_data = results.get()
+
+    count_invalid = 0
+    for idx in range(len(motif_data)):
+        try:
+            motifs_graph, motifs_count = motif_data[idx]
+            for idx_m in range(len(motifs_graph)):
+                motif_shape = motifs_graph[idx_m]
+                if not checkIsomorphism(motif_patterns_list, motif_shape):
+                    motif_patterns_list.append(motif_shape)
+                    dict_patterns['M' + str(patterns_count)] = motif_shape
+                    patterns_count += 1
+
+        except:
+            count_invalid += 1
+
+    print('Invalid: ', count_invalid)
+
+    pickle.dump(dict_patterns, open('motif_patterns_dict.pickle', 'wb'))
+
+    for g in dict_patterns:
+        gr = dict_patterns[g]
+        pos = gtd.arf_layout(gr)
+        gtd.graph_draw(gr, pos=pos, output="../../plots/motif_patterns/ " + str(g) + ".pdf")
+        # gtd.graph_draw(gr, edge_text=cascade_edge_prop, edge_font_size=30, edge_text_distance=20, edge_marker_size=40,
+        #            output="output.png")
+
 
