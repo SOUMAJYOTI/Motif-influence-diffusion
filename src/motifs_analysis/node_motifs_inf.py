@@ -25,16 +25,6 @@ import multiprocessing
 import threading
 import random
 
-# form the motifs from the first k nodes where $k$ is the parameter
-diff_dict = pickle.load(open('../../data/diffusion_dict_v1_t07.pickle', 'rb'))
-
-print('Loading diffusion file...')
-diff_file = '../../data/rt_df.csv'
-df = pd.read_csv(diff_file, names=['index', 'target', 'source', 'rt_time', 'mid', 'post_time', 'isOn'])
-df['mid'] = df['mid'].astype('str')
-steep_inhib_times = pickle.load(open('../../data/steep_inhib_times.pickle', 'rb'))
-
-
 def init(args):
     global count_motifs
     count_motifs = args
@@ -64,14 +54,6 @@ def motif_operation(mid):
     start_time_cascade = 0
     last_time = 0
     count_duplicate = 0
-
-    # DS for storing graph_data
-    df_mid = []
-    df_source = []
-    df_target = []
-    df_flag_edge = []
-    df_rt_time = []
-
     for i, r in cascade_set.iterrows():
         # cnt_intervals += 1
         # new_nodes = []
@@ -107,12 +89,6 @@ def motif_operation(mid):
         # Set the edge information of the users
         weighted_edges.append((src, tgt))
 
-        df_mid.append(mid)
-        df_source.append(src)
-        df_target.append(tgt)
-        df_rt_time.append(cur_time)
-        df_flag_edge.append('cascade')
-
         new_nodes.append(r['source'])
         new_nodes.append(r['target'])
 
@@ -130,13 +106,6 @@ def motif_operation(mid):
                         if str(uid) in new_nodes:
                             if (v, uid) not in diff_edges:
                                 diff_edges.append((v, uid))
-
-                                df_mid.append(mid)
-                                df_source.append(v)
-                                df_target.append(uid)
-                                df_rt_time.append(time_post_individual[uid])
-                                df_flag_edge.append('historical')
-
                                 # if len(list(set(diff_edges_cur_interval))) > 2*len_tree_edges:
                                 #     break
                 except:
@@ -187,89 +156,79 @@ def motif_operation(mid):
             # gts.remove_parallel_edges(cascade_graph)
 
             # FINDING THE MOTIFS IN THE CASCADE GRAPH + DIFFUSION NETWORK
-            motifs_graph, motifs_count, vertex_maps = \
+            motifs_graph_filtered, motifs_count_filtered, vertex_maps_filtered = \
                 gt.clustering.motifs(cascade_graph, 3, return_maps=True)
 
             # for g in motifs_graph_filtered:
             #     for e in g.edges():
             #         print(cascade_edge_prop[e])
 
-            graph_data = {'mid': df_mid, 'source': df_source, 'target': df_target, 'retweet_time': df_rt_time, 'edge_type': df_flag_edge}
-            df_graph = pd.DataFrame(data=graph_data)
+            return motifs_graph_filtered, motifs_count_filtered
 
-            return (mid, motifs_graph, motifs_count, vertex_maps, df_graph)
+def get_inf_nodes(df_graph, mVertex_maps):
+    """ INPUT:
+        mid: Cascade message ID
+        df_graph: Dataframe containing the edge information for the cascade graph
+        mVertex_maps: Motif vertex maps for the cascade
+
+        OUTPUT: Return the influential nodes for each node in the cascade apart from its
+                parent node
+    """
+
+    print(df_graph)
 
 
 if __name__ == '__main__':
+    motif_patterns_dict = pickle.load(open('../../data/motif_preprocess/motif_patterns_dict.pickle', 'rb'))
+    df_graphs = pickle.load(open('../../data/motif_preprocess/df_graph.pickle', 'rb'))
+    motif_vertex_maps = pickle.load(open('../../data/motif_preprocess/motifs_vertex_maps.pickle', 'rb'))
+    steep_inhib_times = pickle.load(open('../../data/steep_inhib_times.pickle', 'rb'))
+
     global count_motifs
-    count_motifs = multiprocessing.Value('i', 0)
-
-    number_intervals = 500
-
-    motif_patterns_global_list = {}
-    motif_patterns_global_list_inhib = {}
-    motif_count_global_list = {}
-    motif_count_global_list_inhib = {}
-
-    motif_patterns_list = []
-    dict_patterns = {}
-    patterns_count = 1
+    motifs_inf = multiprocessing.Value('i', 0)
 
     numProcessors = 2
-    pool = multiprocessing.Pool(numProcessors, initializer=init, initargs=(count_motifs,))
-
-    num_cascades = len(steep_inhib_times.keys())
-
-    print("Loading cascade data...")
-
+    pool = multiprocessing.Pool(numProcessors, initializer=init, initargs=(motifs_inf,))
     cnt_mids = 0
 
     # count_motifs = 0
     tasks = []
     for mid in steep_inhib_times:
-        tasks.append( (mid) )
+        df_graph_curr = df_graphs[df_graphs['mid'] == mid]
+        tasks.append( (df_graph_curr, motif_vertex_maps[mid]) )
         cnt_mids += 1
-        if cnt_mids > 1500:
+        if cnt_mids > 1:
             break
 
-    results = pool.map_async(motif_operation, tasks)
+    results = pool.map_async(get_inf_nodes, tasks)
     pool.close()
     pool.join()
 
     motif_data = results.get()
 
-    count_invalid = 0
-    frames = []
-    motifs_dict = {}
-    for idx in range(len(motif_data)):
-        try:
-            (mid, motifs_graph, motifs_count, vertex_maps, df_graph) = motif_data[idx]
-            frames.append(df_graph)
-            if mid not in motifs_dict:
-                motifs_dict[mid] = [motifs_graph, motifs_count, vertex_maps]
-
-            for idx_m in range(len(motifs_graph)):
-                motif_shape = motifs_graph[idx_m]
-                if not checkIsomorphism(motif_patterns_list, motif_shape):
-                    motif_patterns_list.append(motif_shape)
-                    dict_patterns['M' + str(patterns_count)] = motif_shape
-                    patterns_count += 1
-
-        except:
-            count_invalid += 1
-
-    df_all = pd.concat(frames)
-    print('Invalid: ', count_invalid)
-
-    pickle.dump(dict_patterns, open('../../data/motif_preprocess/motif_patterns_dict.pickle', 'wb'))
-    pickle.dump(df_all, open('../../data/motif_preprocess/df_graph.pickle', 'wb'))
-    pickle.dump(motifs_dict, open('../../data/motif_preprocess/motifs_vertex_maps.pickle', 'wb'))
-
-    for g in dict_patterns:
-        gr = dict_patterns[g]
-        pos = gtd.arf_layout(gr)
-        gtd.graph_draw(gr, pos=pos, output="../../plots/motif_patterns/ " + str(g) + ".pdf")
-        # gtd.graph_draw(gr, edge_text=cascade_edge_prop, edge_font_size=30, edge_text_distance=20, edge_marker_size=40,
-        #            output="output.png")
-
-
+    # count_invalid = 0
+    # for idx in range(len(motif_data)):
+    #     try:
+    #         motifs_graph, motifs_count = motif_data[idx]
+    #         for idx_m in range(len(motifs_graph)):
+    #             motif_shape = motifs_graph[idx_m]
+    #             if not checkIsomorphism(motif_patterns_list, motif_shape):
+    #                 motif_patterns_list.append(motif_shape)
+    #                 dict_patterns['M' + str(patterns_count)] = motif_shape
+    #                 patterns_count += 1
+    #
+    #     except:
+    #         count_invalid += 1
+    #
+    # print('Invalid: ', count_invalid)
+    #
+    # pickle.dump(dict_patterns, open('motif_patterns_dict.pickle', 'wb'))
+    #
+    # for g in dict_patterns:
+    #     gr = dict_patterns[g]
+    #     pos = gtd.arf_layout(gr)
+    #     gtd.graph_draw(gr, pos=pos, output="../../plots/motif_patterns/ " + str(g) + ".pdf")
+    #     # gtd.graph_draw(gr, edge_text=cascade_edge_prop, edge_font_size=30, edge_text_distance=20, edge_marker_size=40,
+    #     #            output="output.png")
+    #
+    #
