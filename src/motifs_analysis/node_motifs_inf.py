@@ -25,6 +25,16 @@ import multiprocessing
 import threading
 import random
 
+
+# The stored data to be loaded
+motif_patterns_dict = pickle.load(open('../../data/motif_preprocess/motif_patterns_dict.pickle', 'rb')) # motif patterns dictionary
+df_graphs_nw = pickle.load(open('../../data/motif_preprocess/df_graph.pickle', 'rb')) # cascade network information in pandas df
+motif_maps = pickle.load(open('../../data/motif_preprocess/motifs_maps.pickle', 'rb')) # motif patterns and instances for each cascade
+steep_inhib_times = pickle.load(open('../../data/steep_inhib_times.pickle', 'rb')) # steep and inhib times for each cascade
+vertex_rtTimes = pickle.load(open('../../data/vertex_rtTimes.pickle', 'wb')) # retweet time of each vertex for each cascade
+edges_cascade, edges_historical = pickle.load(open('../../data/motif_preprocess/edges_partitioned.pickle', 'rb')) # partitioned edges precomputed for faster processing
+
+
 def init(args):
     global count_motifs
     count_motifs = args
@@ -37,152 +47,77 @@ def checkIsomorphism(graph_list, g):
     return False
 
 
-def motif_operation(mid):
-    cascade_set = df[(df['mid'] == str(mid))]
-
-    nodes_src = [[] for interval in range(500)]
-    new_nodes = []
-    new_nodes_count = 0
-
-    weighted_edges = []
-    cnt_intervals = 0
-    time_post_individual = {}
-
-    motif_patterns_cascade_list = [{} for i in range(500)]
-    print("Cascade of mid: ", mid, " and reshare size: ", len(cascade_set))
-
-    start_time_cascade = 0
-    last_time = 0
-    count_duplicate = 0
-    for i, r in cascade_set.iterrows():
-        # cnt_intervals += 1
-        # new_nodes = []
-        # new_nodes_count = 0
-
-        src = r['source']
-        tgt = r['target']
-
-        # Set the temporal information of the nodes
-        rt_time = str(r['rt_time'])
-        rt_date = rt_time[:10]
-        rt_t = rt_time[11:19]
-        record_time = rt_date + ' ' + rt_t
-        time_x = datetime.datetime.strptime(record_time, '%Y-%m-%d %H:%M:%S')
-        cur_time = time.mktime(time_x.timetuple())
-
-        if i == 0:
-            start_time_cascade = cur_time # this is the start time of the cascade
-            time_post_individual[src] = cur_time - 100 # set the start time of src node as some time before this post
-
-        if (src, tgt) in weighted_edges:
-            continue
-
-        if src not in time_post_individual:
-            time_post_individual[src] = last_time
-
-        # this check is not needed - but just for noisy data !!!
-        if tgt not in time_post_individual:
-            time_post_individual[tgt] = cur_time - start_time_cascade
-
-        last_time = cur_time  # store this time for next retweet if the source node is new
-
-        # Set the edge information of the users
-        weighted_edges.append((src, tgt))
-
-        new_nodes.append(r['source'])
-        new_nodes.append(r['target'])
-
-        new_nodes = list(set(new_nodes))
-        new_nodes_count = len(new_nodes)
-        nodes_src[cnt_intervals] = list(set(nodes_src[cnt_intervals]))
-
-        # If the number of observed nodes (used for the learning algorithm) crosses a threshold = 50
-        if new_nodes_count > 50:
-            # these are the historical edges
-            diff_edges = []
-            for v in new_nodes:
-                try:
-                    for uid, tid in diff_dict[v]:
-                        if str(uid) in new_nodes:
-                            if (v, uid) not in diff_edges:
-                                diff_edges.append((v, uid))
-                                # if len(list(set(diff_edges_cur_interval))) > 2*len_tree_edges:
-                                #     break
-                except:
-                    continue
-
-            # create the graph from the edge list
-            cascade_graph = gt.Graph(directed=True)
-            node_cascades_diff_map = {}
-            cnt_nodes = 0
-            cascade_vertices = cascade_graph.new_vertex_property("string")
-            cascade_edge_prop = cascade_graph.new_edge_property("int")
-
-            # Add the cascade edges
-            # 0 - Cascade edges
-            # 1 - Diffusion edges
-            for (src, tgt) in weighted_edges:
-                if src not in node_cascades_diff_map:
-                    node_cascades_diff_map[src] = cnt_nodes # map from user ID to graphnode ID
-                    v1 = cascade_graph.add_vertex()
-                    cascade_vertices[v1] = src # map from graphnode ID to user ID
-                    cnt_nodes += 1
-                else:
-                    v1 = cascade_graph.vertex(node_cascades_diff_map[src])
-
-                if tgt not in node_cascades_diff_map:
-                    node_cascades_diff_map[tgt] = cnt_nodes # map from user ID to graphnode ID
-                    v2 = cascade_graph.add_vertex()
-                    cascade_vertices[v2] = tgt # map from graphnode ID to user ID
-                    cnt_nodes += 1
-                else:
-                    v2 = cascade_graph.vertex(node_cascades_diff_map[tgt])
-
-                if cascade_graph.edge(v1, v2):
-                    continue
-                else:
-                    e = cascade_graph.add_edge(v1, v2)
-                    cascade_edge_prop[e] = 0
-
-            # Add the diffusion edges (even if there already exists a cascade edge)
-            for (src, tgt) in diff_edges:
-                v1 = node_cascades_diff_map[src]
-                v2 = node_cascades_diff_map[tgt]
-
-                e = cascade_graph.add_edge(v1, v2)
-                cascade_edge_prop[e] = 1
-
-            gts.remove_self_loops(cascade_graph)
-            # gts.remove_parallel_edges(cascade_graph)
-
-            # FINDING THE MOTIFS IN THE CASCADE GRAPH + DIFFUSION NETWORK
-            motifs_graph_filtered, motifs_count_filtered, vertex_maps_filtered = \
-                gt.clustering.motifs(cascade_graph, 3, return_maps=True)
-
-            # for g in motifs_graph_filtered:
-            #     for e in g.edges():
-            #         print(cascade_edge_prop[e])
-
-            return motifs_graph_filtered, motifs_count_filtered
-
-def get_inf_nodes(df_graph, mVertex_maps):
+def get_inf_nodes(mid):
     """ INPUT:
         mid: Cascade message ID
         df_graph: Dataframe containing the edge information for the cascade graph
         mVertex_maps: Motif vertex maps for the cascade
 
-        OUTPUT: Return the influential nodes for each node in the cascade apart from its
+        OUTPUT: Return the influential nodes for each node retweet in the cascade apart from its
                 parent node
     """
 
-    print(df_graph)
+    df_graph = df_graphs_nw[df_graphs_nw['mid'] == mid]
+    [motifs_graph, motifs_count, vertex_maps] = motif_maps[mid]
+    edges_cas_curr = edges_cascade[mid]
+    edges_hist_curr = edges_historical[mid]
+
+    inf_nodes = {} # stores the influential nodes apart from parent for each node retweet
+    inf_edges = {} # stores the influential edges between nodes apart from parent for each node retweet
+    for i, r in df_graph.iterrows():
+        src = r['source']
+        tgt = r['target']
+        src_rtTime = vertex_rtTimes[mid][src]
+        tgt_rtTime = vertex_rtTimes[mid][tgt]
+        rt_time = r['retweet_time']
+        edge_type = r['edge_type']
+        if edge_type == 'historical': # only consider the cascade retweets for the influence function compute
+            continue
+
+        if tgt not in inf_nodes:
+            inf_nodes[tgt] = []
+            inf_edges[tgt] = []
+
+        # find the motifs of particular patterns attached to that pair of src and tgt
+        # Patterns - [M2, M4]
+
+        # Pattern M2
+        graph_pat_act = motif_patterns_dict['M2'] # actual pattern
+        for idx_map in range(len(motifs_graph)):
+            graph_pat_curr = motifs_graph[idx_map]
+            # check for the correct pattern among all the patterns
+            if not gtt.isomorphism(graph_pat_act, graph_pat_curr):
+                continue
+
+            # check the motif instances containing source and target
+            vMaps = vertex_maps[idx_map]
+            # cnt_maps = 0
+            for vertices in vMaps:
+                # Cond. 1: the source and target should be in the motif instance
+                vertex_list = vertices.a
+                if src not in vertex_list or tgt not in vertex_list:
+                    continue
+                for v in vertex_list:
+                    if v != src and v!= tgt:
+                        third_vertex = v
+                        break
+
+                # Cond. 2: the target vertex should have retweeted last among all the motif vertices
+                third_rtTime = vertex_rtTimes[third_vertex]
+                max_time = max([tgt_rtTime, src_rtTime, third_rtTime])
+                if max_time != tgt_rtTime:
+                    continue
+
+                inf_nodes[tgt].append(third_vertex)
+                if (third_vertex, src) in edges_cas_curr:
+                    inf_edges[tgt].append((third_vertex, src, 'cascade'))
+                else:
+                    inf_edges[tgt].append((third_vertex, src, 'historical'))
+
+    return (mid, inf_nodes, inf_edges)
 
 
 if __name__ == '__main__':
-    motif_patterns_dict = pickle.load(open('../../data/motif_preprocess/motif_patterns_dict.pickle', 'rb'))
-    df_graphs = pickle.load(open('../../data/motif_preprocess/df_graph.pickle', 'rb'))
-    motif_vertex_maps = pickle.load(open('../../data/motif_preprocess/motifs_vertex_maps.pickle', 'rb'))
-    steep_inhib_times = pickle.load(open('../../data/steep_inhib_times.pickle', 'rb'))
 
     global count_motifs
     motifs_inf = multiprocessing.Value('i', 0)
@@ -194,8 +129,7 @@ if __name__ == '__main__':
     # count_motifs = 0
     tasks = []
     for mid in steep_inhib_times:
-        df_graph_curr = df_graphs[df_graphs['mid'] == mid]
-        tasks.append( (df_graph_curr, motif_vertex_maps[mid]) )
+        tasks.append((mid))
         cnt_mids += 1
         if cnt_mids > 1:
             break
@@ -206,9 +140,13 @@ if __name__ == '__main__':
 
     motif_data = results.get()
 
-    # count_invalid = 0
-    # for idx in range(len(motif_data)):
-    #     try:
+    count_invalid = 0
+
+    for idx in range(len(motif_data)):
+        try:
+            mid, inf_nodes, inf_edges = motif_data[idx]
+            
+
     #         motifs_graph, motifs_count = motif_data[idx]
     #         for idx_m in range(len(motifs_graph)):
     #             motif_shape = motifs_graph[idx_m]
