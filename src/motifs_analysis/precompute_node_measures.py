@@ -1,5 +1,6 @@
 import networkx as nx
 import pickle
+import  matplotlib.pyplot as plt
 
 
 def binarySearch(alist, item):
@@ -25,7 +26,9 @@ if __name__ == "__main__":
 
     edge_list = []
     nodes_list =[]
+    cnt_file = 1
     for ddf in diff_dict_files:
+        print("File: ", cnt_file)
         for node in ddf:
             if not binarySearch(nodes_list, node):
                 nodes_list.append(node)
@@ -35,13 +38,26 @@ if __name__ == "__main__":
                         continue
                     edge_list.append((node, nbr))
 
-            if len(edge_list) > 100:
-                break
+        cnt_file += 1
+        # if len(edge_list) > 100:
+        #     break
 
+    # print(len(nodes_list), len(edge_list))
     cascade_graph = nx.DiGraph()
     cascade_graph.add_edges_from(edge_list)
 
-    measure_node = nx.betweenness_centrality(cascade_graph)
+    pr_node = nx.pagerank(cascade_graph)
+    bw_node = nx.betweenness_centrality(cascade_graph)
+
+    out_deg = {}
+    in_deg = {}
+    for node in pr_node:
+        out_deg[node] = cascade_graph.out_degree(node)
+        in_deg[node] = cascade_graph.in_degree(node)
+
+    centralities = (pr_node, bw_node, out_deg, in_deg)
+
+    pickle.dump(centralities, open('../../data/centralities_diff_T07_08-v1.pcikle', 'wb'))
 
 
 

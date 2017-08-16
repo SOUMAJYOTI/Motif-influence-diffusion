@@ -25,11 +25,11 @@
       <file leaf-file-name="precompute_node_measures.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/motifs_analysis/precompute_node_measures.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="770">
-              <caret line="50" column="0" selection-start-line="50" selection-start-column="0" selection-end-line="50" selection-end-column="0" />
+            <state relative-caret-position="418">
+              <caret line="34" column="39" selection-start-line="34" selection-start-column="39" selection-end-line="34" selection-end-column="39" />
               <folding>
                 <element signature="e#0#21#0" expanded="true" />
-                <element signature="e#73#418#0" expanded="false" />
+                <element signature="e#106#451#0" expanded="false" />
               </folding>
             </state>
           </provider>
@@ -347,11 +347,11 @@
   <component name="editorHistoryManager">
     <entry file="file://$PROJECT_DIR$/src/motifs_analysis/precompute_node_measures.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="770">
-          <caret line="50" column="0" selection-start-line="50" selection-start-column="0" selection-end-line="50" selection-end-column="0" />
+        <state relative-caret-position="418">
+          <caret line="34" column="39" selection-start-line="34" selection-start-column="39" selection-end-line="34" selection-end-column="39" />
           <folding>
             <element signature="e#0#21#0" expanded="true" />
-            <element signature="e#73#418#0" expanded="false" />
+            <element signature="e#106#451#0" expanded="false" />
           </folding>
         </state>
       </provider>
