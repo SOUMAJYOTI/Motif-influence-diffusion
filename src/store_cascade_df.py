@@ -25,8 +25,14 @@ import multiprocessing
 import threading
 import random
 
-# Read the cascade intreval-wised edges dataframe
-cascade_edges = pickle.load(open(directory + '/df_graph_s3.pickle', 'rb'))
+
+# form the motifs from the first k nodes where $k$ is the parameter
+diff_dict = pickle.load(open('../../data/diffusion_dict_v1_t06_07.pickle', 'rb'))
+
+print('Loading diffusion file...')
+diff_file = '../../data/rt_df.csv'
+df = pd.read_csv(diff_file, names=['index', 'target', 'source', 'rt_time', 'mid', 'post_time', 'isOn'])
+df['mid'] = df['mid'].astype('str')
 steep_inhib_times = pickle.load(open('../../data/steep_inhib_times.pickle', 'rb'))
 
 
@@ -43,71 +49,9 @@ def checkIsomorphism(graph_list, g):
 
 
 def motif_operation(mid):
-    cascade_set = cascade_edges[(cascade_edges['mid'] == str(mid))]
+    cascade_set = df[(df['mid'] == str(mid))]
 
     print("Cascade of mid: ", mid, " and reshare size: ", len(cascade_set))
-
-    numIntervals = np.max(np.array(list(cascade_set['interval_2'])))
-    for int_idx in range(1, numIntervals):
-        cascade_intervalDf = cascade_set[cascade_set['interval_1'] == int_idx-1]
-        cascade_intervalDf = cascade_intervalDf[cascade_intervalDf['interval_2'] == int_idx]
-        cascade_edges = cascade_intervalDf[cascade_intervalDf['edge_type']==]
-
-        # create the graph from the edge list
-        cascade_graph = gt.Graph(directed=True)
-        node_cascades_diff_map = {}
-        cnt_nodes = 0
-        cascade_vertices = cascade_graph.new_vertex_property("string")
-        cascade_edge_prop = cascade_graph.new_edge_property("int")
-        cascade_map_write_file = {}
-
-
-        # Add the cascade edges
-        # 0 - Cascade edges
-        # 1 - Diffusion edges
-        for (src, tgt) in weighted_edges:
-            if src not in node_cascades_diff_map:
-                node_cascades_diff_map[src] = cnt_nodes # map from user ID to graphnode ID
-                v1 = cascade_graph.add_vertex()
-                cascade_vertices[v1] = src # map from graphnode ID to user ID
-                cascade_map_write_file[cnt_nodes] = src
-                cnt_nodes += 1
-            else:
-                v1 = cascade_graph.vertex(node_cascades_diff_map[src])
-
-            if tgt not in node_cascades_diff_map:
-                node_cascades_diff_map[tgt] = cnt_nodes # map from user ID to graphnode ID
-                v2 = cascade_graph.add_vertex()
-                cascade_vertices[v2] = tgt # map from graphnode ID to user ID
-                cascade_map_write_file[cnt_nodes] = tgt
-                cnt_nodes += 1
-            else:
-                v2 = cascade_graph.vertex(node_cascades_diff_map[tgt])
-
-            if cascade_graph.edge(v1, v2):
-                continue
-            else:
-                e = cascade_graph.add_edge(v1, v2)
-                cascade_edge_prop[e] = 0
-
-        # Add the diffusion edges (even if there already exists a cascade edge)
-        for (src, tgt) in diff_edges:
-            v1 = node_cascades_diff_map[src]
-            v2 = node_cascades_diff_map[tgt]
-
-            e = cascade_graph.add_edge(v1, v2)
-            cascade_edge_prop[e] = 1
-
-        gts.remove_self_loops(cascade_graph)
-        # gts.remove_parallel_edges(cascade_graph)
-
-        # FINDING THE MOTIFS IN THE CASCADE GRAPH + DIFFUSION NETWORK
-        motifs_graph, motifs_count, vertex_maps = \
-            gt.clustering.motifs(cascade_graph, 3, return_maps=True)
-
-        for g in motifs_graph_filtered:
-            for e in g.edges():
-                print(cascade_edge_prop[e])
 
     # DS for storing graph_data
     df_mid = []
@@ -172,7 +116,7 @@ def motif_operation(mid):
             new_nodes = []
             cur_interval += 1
             graph_data = {'mid': df_mid, 'source': df_source, 'target': df_target, 'retweet_time': df_rt_time,
-                          'interval_1': df_interval_1, 'interval_2:': df_interval_2, 'edge_type': df_flag_edge}
+                          'interval_1': df_interval_1, 'interval_2': df_interval_2, 'edge_type': df_flag_edge}
             df_graph_list.append(pd.DataFrame(data=graph_data))
             df_mid = []
             df_source = []
@@ -238,3 +182,10 @@ if __name__ == '__main__':
             count_invalid += 1
 
     print('Invalid: ', count_invalid)
+    df_all = pd.concat(frames)
+
+    directory = '../../data/motif_preprocess/v1'
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    pickle.dump(df_all, open(directory + '/df_graph_s3.pickle', 'wb'))
