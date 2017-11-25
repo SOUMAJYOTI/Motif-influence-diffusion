@@ -32,7 +32,7 @@ def regressLL(params):
 initParams = [1, 1, 1]
 
 # Run the minimizer
-results = minimize(regressLL, initParams, method='nelder-mead')
+results = minimize(regressLL, initParams, method='')
 
 # Print the results. They should be really close to your actual values
 print(results.x)
