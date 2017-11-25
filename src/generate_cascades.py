@@ -22,7 +22,7 @@ def generate_graph():
     for i in range(5):
         initialGraph.addEdge(i, i)
 
-    k = 2
+    k = 3
     generator = KroneckerGenerator(initialGraph, k)
     graph = generator.generate()
 
@@ -39,34 +39,53 @@ def generate_cascades(graph):
         vertDegMap[idx_vert] = degList[idx_vert]
 
     # Get the top k vertices by degree
-    numTopVertices = 2000
+    numTopVertices = 20
     sortedVertices = sorted(vertDegMap.items(), key=operator.itemgetter(1), reverse=True)[:numTopVertices]
     topVertices = []
     for (v, deg) in sortedVertices:
         topVertices.append(v)
 
-    numCascades = 1000
-    T_C = 40000
+    numCascades = 10
+    T_C = 20000 # Time limit of cascade
     cascadeIds = []
     sourceList = []
     targetList = []
     timeStamps = []
+
+    chosenTopNodes = []
+
     for idx_cas in range(numCascades):
+        print("Cascade of Id: ", idx_cas)
         vertTimeDict = {}
-        sourceVert = np.random.choice(topVertices)
+
+        # Choose a source node not already in other cascades sources
+        while True:
+            sourceVert = np.random.choice(topVertices)
+            if sourceVert in chosenTopNodes:
+                continue
+            else:
+                break
+        chosenTopNodes.append(sourceVert)
+
         vertTimeDict[sourceVert] = 0
         vertexTraversed = []
         vertexTraversed.append(sourceVert)
 
-        pairsNodes = [(sourceVert, nbr) for nbr in graph.neighbors(sourceVert)]
+        pairsNodes = [(sourceVert, nbr) for nbr in graph.neighbours(sourceVert)]
         vertexCurrLayer = []
         vertexCurrLayer.extend(pairsNodes)
 
+        flagEnd = 0
         while True:
             vertexNextLayer = []
+
+            print(len(vertexCurrLayer))
             for src, nbr in vertexCurrLayer:
+                if nbr in vertexTraversed:
+                    continue
                 timeDelta = sample_rayleigh_pdf()
                 vertTimeDict[nbr] = vertTimeDict[src] + timeDelta
+                vertexTraversed.append(nbr)
 
                 # Fill the lists for storing in dataframe
                 cascadeIds.append(idx_cas)
@@ -74,15 +93,28 @@ def generate_cascades(graph):
                 targetList.append(nbr)
                 timeStamps.append(vertTimeDict[nbr])
 
+                # print(vertTimeDict[nbr])
+                if vertTimeDict[nbr] > T_C:
+                    flagEnd = 1
+                    break
+
                 # Append the next layer nodes
-                pairsNodes = [(nbr, nbrNew) for nbrNew in graph.neighbors(nbr)]
+                pairsNodes = [(nbr, nbrNew) for nbrNew in graph.neighbours(nbr)]
                 vertexNextLayer.extend(pairsNodes)
 
+            # Break when the time limit of cascade exceeds or there are  no new nodes to infect
+            if flagEnd == 1:
+                break
             vertexCurrLayer[:] = vertexNextLayer  # copy this object
+            # print(len(vertexCurrLayer))
+            if len(vertexCurrLayer) == 0:
+                break
+
 
 
 def main():
-    generate_graph()
+    graph = generate_graph()
+    generate_cascades(graph)
 
 if __name__ == "__main__":
     main()
