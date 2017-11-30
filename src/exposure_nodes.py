@@ -258,7 +258,23 @@ def motif_operation(mid, cnt_mid):
                     #     inf_edges[tgt].append((third_vertex, tgt, 'historical'))
 
         ''' Operation 5. '''
+        thresh = 5 * 0.00001
+        for node in inf_nodes:
+            time_dict = {}
+            exposure_nodes = inf_nodes[node]
+            for e in exposure_nodes:
+                time_dict[e] = vertex_rtTime_dict[e]
 
+            sorted_dict = sorted(time_dict.items())
+
+            product = np.prod(np.array(list(sorted_dict.values())))
+            val = list(sorted_dict.values())
+            while product < thresh:
+                val = val[1:]
+
+            inf_nodes[node] = np.find(sorted_dict, val)
+
+        
     #  Create a dataframe with the rows as original
     cascade_Df = cascade_set[cascade_set['edge_type'] == 'cascade']
     inf_nodes_df = []

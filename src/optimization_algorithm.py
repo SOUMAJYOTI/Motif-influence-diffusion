@@ -11,9 +11,10 @@ from scipy.optimize import minimize
 randomTime = datetime.datetime.strptime('2011-08-01', '%Y-%m-%d')
 randomTime = time.mktime(randomTime.timetuple())
 
+k = 3000 # no. of cascades to consider for traning network
 degDict = pd.read_pickle('../../../data/deg_centralities_diff_T07_08-v1.pcikle')
-inputDf = pd.read_pickle('../../../data/df_optimize_input_sample.pickle')
-midList = list(set(inputDf['mid']))[:3]
+inputDf = pd.read_pickle('../../../data/df_optimize_input_v1.0+.pickle')
+midList = list(set(inputDf['mid']))[:k]
 
 Nfeval = 1
 inputDf = inputDf[inputDf['mid'].isin(midList)]
@@ -231,7 +232,7 @@ def callbackF(Xi):
 
 
 def optimize_coordinate_descent():
-    maxIter = 10
+    maxIter = 500
 
     constantInit = np.random.uniform(0.1, 1, 1)[0]
     alpha = [constantInit for _ in range(count_pairs_alpha)]
@@ -245,11 +246,11 @@ def optimize_coordinate_descent():
     while iterCount < maxIter:
         print("Iteration: ", iterCount)
         LL = G_1_alpha(alpha)
-        results = minimize(G_1_alpha, np.array(alpha), method='nelder-mead', options={'maxiter':5})#, callback=callbackF)
+        results = minimize(G_1_alpha, np.array(alpha), method='nelder-mead', options={'maxiter':100})#, callback=callbackF)
         alpha = results.x
 
         LL = G_1_eta(eta)
-        results = minimize(G_1_eta, np.array(eta), method='nelder-mead', options={'maxiter':5})#, callback=callbackF)
+        results = minimize(G_1_eta, np.array(eta), method='nelder-mead', options={'maxiter':100})#, callback=callbackF)
         eta = results.x
 
         clf_G_2 = linear_model.Lasso(alpha=0.001)

@@ -37,10 +37,10 @@ if __name__ == "__main__":
                     continue
                 edge_list.append((node, nbr))
             nodes_list.append(node)
-            edge_list = list(set(edge_list))
+            # edge_list = list(set(edge_list))
 
-            # print(len(edge_list))
-            if len(edge_list) > 5000000:
+            print(len(edge_list))
+            if len(edge_list) > 10000000:
                 break
 
         cnt_file += 1
