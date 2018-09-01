@@ -10,12 +10,12 @@ from collections import *
 randomTime = datetime.datetime.strptime('2011-08-01', '%Y-%m-%d')
 randomTime = time.mktime(randomTime.timetuple())
 
-diff_dict = pickle.load(open('../data/diffusion_dict_v1_t06_07.pickle', 'rb'))
+diff_dict = pickle.load(open('../data/diffusion_dict_v1_t08.pickle', 'rb'))
 
 
 k = 1799 # no. of cascades to consider for traning network
 # degDict = pd.read_pickle('../data/deg_centralities_diff_T07_08-v1.pcikle')
-inputDf = pd.read_pickle('../data/df_optimize_input_sample_v1.0+.pickle')
+inputDf = pd.read_pickle('../data/df_optimize_input_v1.0+.pickle')
 
 count = 0
 midList = list(set(inputDf['mid']))
@@ -55,24 +55,16 @@ def plot_exposure_distribution():
 
 
 def calculate_exposure_dist():
-    trainDf, testDf = split_training_test(midList)
-
-    actions_u = defaultdict(int)
     actions_u2v = {}
 
     # Training process
     print("training......")
     for mid in midList:
         cascade = inputDf[inputDf['mid'] == mid]
-        nodes_seen = []
 
         for idx, row in cascade.iterrows():
             currNode = row['node']
             parent = row['parents']
-
-            if currNode not in nodes_seen:
-                nodes_seen.append(currNode)
-                actions_u[currNode] += 1
 
             if (parent, currNode) not in actions_u2v:
                 actions_u2v[(parent, currNode)] = 1
@@ -91,6 +83,8 @@ def calculate_exposure_dist():
         for e in exposedNodes:
             if (e, node) in actions_u2v:
                 exposureDist.append(actions_u2v[(e, node)])
+            if (node, e) in actions_u2v:
+                exposureDist.append(actions_u2v[(node, e)])
 
         if node in diff_dict:
             for friend in diff_dict[node]:
@@ -98,7 +92,6 @@ def calculate_exposure_dist():
                     allNeighborsDist.append(actions_u2v[(friend, node)])
                 elif (node, friend) in actions_u2v:
                     allNeighborsDist.append(actions_u2v[(node, friend)])
-
 
     print(len(exposureDist), len(allNeighborsDist))
 
