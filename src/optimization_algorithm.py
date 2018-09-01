@@ -12,8 +12,9 @@ randomTime = datetime.datetime.strptime('2011-08-01', '%Y-%m-%d')
 randomTime = time.mktime(randomTime.timetuple())
 
 k = 3000 # no. of cascades to consider for traning network
-degDict = pd.read_pickle('../../../data/deg_centralities_diff_T07_08-v1.pcikle')
-inputDf = pd.read_pickle('../../../data/df_optimize_input_v1.0+.pickle')
+degDict = pd.read_pickle('../data/deg_centralities_diff_T07_08-v1.pcikle')
+inputDf = pd.read_pickle('../data/df_optimize_input_sample_v1.0+.pickle')
+
 midList = list(set(inputDf['mid']))[:k]
 
 Nfeval = 1
