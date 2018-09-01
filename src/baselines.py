@@ -10,11 +10,12 @@ from collections import *
 randomTime = datetime.datetime.strptime('2011-08-01', '%Y-%m-%d')
 randomTime = time.mktime(randomTime.timetuple())
 
-graphDf = pd.read_pickle('../data/motif_preprocess/v1/df_graph_s3.pickle')
+diff_dict = pickle.load(open('../data/diffusion_dict_v1_t06_07.pickle', 'rb'))
+
 
 k = 1799 # no. of cascades to consider for traning network
 # degDict = pd.read_pickle('../data/deg_centralities_diff_T07_08-v1.pcikle')
-inputDf = pd.read_pickle('../data/df_optimize_input_v1.0+.pickle')
+inputDf = pd.read_pickle('../data/df_optimize_input_sample_v1.0+.pickle')
 
 count = 0
 midList = list(set(inputDf['mid']))
@@ -30,6 +31,109 @@ def split_training_test(midList):
     testDf = inputDf[inputDf['mid'].isin(midTest)]
 
     return trainDf, testDf
+
+def sigmoid_function(param):
+    '''
+
+    :param param:
+    :return:
+    '''
+
+    eta_lo = .001
+    eta_hi =0.25
+    g  = 1.0
+    k_0 = 15
+
+    return eta_lo + ((eta_hi - eta_lo) / (1. + np.exp( - g*(k - k_0))))
+
+
+def plot_exposure_distribution():
+    '''
+
+    :return:
+    '''
+
+
+def calculate_exposure_dist():
+    trainDf, testDf = split_training_test(midList)
+
+    actions_u = defaultdict(int)
+    actions_u2v = {}
+
+    # Training process
+    print("training......")
+    for mid in midList:
+        cascade = inputDf[inputDf['mid'] == mid]
+        nodes_seen = []
+
+        for idx, row in cascade.iterrows():
+            currNode = row['node']
+            parent = row['parents']
+
+            if currNode not in nodes_seen:
+                nodes_seen.append(currNode)
+                actions_u[currNode] += 1
+
+            if (parent, currNode) not in actions_u2v:
+                actions_u2v[(parent, currNode)] = 1
+            else:
+                actions_u2v[(parent, currNode)] += 1
+
+    pickle.dump(actions_u2v, open('../data/actions_u2v.pickle', 'wb'))
+
+    exposureDist = []
+    allNeighborsDist = []
+
+    for idx, row in inputDf.iterrows():
+        node = row['node']
+        exposedNodes = row['exposedNodes']
+
+        for e in exposedNodes:
+            if (e, node) in actions_u2v:
+                exposureDist.append(actions_u2v[(e, node)])
+
+        if node in diff_dict:
+            for friend in diff_dict[node]:
+                if (friend, node) in actions_u2v:
+                    allNeighborsDist.append(actions_u2v[(friend, node)])
+                elif (node, friend) in actions_u2v:
+                    allNeighborsDist.append(actions_u2v[(node, friend)])
+
+
+    print(len(exposureDist), len(allNeighborsDist))
+
+
+def ComplexContagion():
+    '''
+
+    :return:
+    '''
+    trainDf, testDf = split_training_test(midList)
+
+    actions_u = defaultdict(int)
+    actions_u2v = {}
+
+    midTrain = list(set(trainDf['mid']))
+    midTest = list(set(testDf['mid']))
+
+    # Training process
+    print("training......")
+    for mid in midTrain:
+        cascade = inputDf[inputDf['mid'] == mid]
+        nodes_seen = []
+
+        for idx, row in cascade.iterrows():
+            currNode = row['node']
+            parent = row['parents']
+
+            if currNode not in nodes_seen:
+                nodes_seen.append(currNode)
+                actions_u[currNode] += 1
+
+            if (parent, currNode) not in actions_u2v:
+                actions_u2v[(parent, currNode)] = 1
+            else:
+                actions_u2v[(parent, currNode)] += 1
 
 
 def main():
@@ -115,7 +219,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    calculate_exposure_dist()
+    # main()
 
 
 
